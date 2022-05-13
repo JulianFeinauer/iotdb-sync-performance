@@ -4,18 +4,18 @@ import random
 import shutil
 import subprocess
 import threading
-from os import path
 from time import sleep
 
 from iotdb.Session import Session
-from iotdb.utils.Field import Field
 from iotdb.utils.RowRecord import RowRecord
 from iotdb.utils.SessionDataSet import SessionDataSet
 
-NUMBER_OF_EDGE_DEVICES = 10
+STARTING_PORT = 7001
+
+NUMBER_OF_EDGE_DEVICES = 20
 NUMBER_OF_WORKER_THREADS = 1
-RECORDS_PER_EPOCH = 10000
-EPOCHS = 10
+RECORDS_PER_EPOCH = 100
+EPOCHS = 1
 
 
 def modify_file(filename, map_function):
@@ -39,10 +39,23 @@ def modify_cloud_config(config):
 
 def modify_edge_config(config, port):
     config = config.replace("rpc_port=6667", f"rpc_port={port}")
+    config = config.replace("# wal_buffer_size=16777216", "wal_buffer_size=1677721")
+    config = config.replace("# enable_timed_flush_unseq_memtable=true", "enable_timed_flush_unseq_memtable=false")
+    config = config.replace("# enable_timed_close_tsfile=true", "enable_timed_close_tsfile=false")
+    config = config.replace("# storage_group_report_threshold=16777216", "storage_group_report_threshold=1677721")
+    config = config.replace("# enable_unseq_space_compaction=true", "enable_unseq_space_compaction=false")
     return config
 
 
+def modify_edge_env_config(config):
+    config = config.replace('#MAX_HEAP_SIZE="2G"', 'MAX_HEAP_SIZE="100M"')
+    config = config.replace('#HEAP_NEWSIZE="2G"', 'HEAP_NEWSIZE="100M"')
+    config = config.replace('MAX_DIRECT_MEMORY_SIZE=${MAX_HEAP_SIZE}', 'MAX_DIRECT_MEMORY_SIZE="50M"')
+    config = config.replace('threads_number="16"', 'threads_number="4"')
+    return config
+
 STOP = False
+
 
 processes_spawned = []
 
@@ -58,7 +71,7 @@ def start_server(folder, start_command="sbin/start-server.sh"):
 
 
 def start_iotdb_server(path, start_command="sbin/start-server.sh"):
-    print(f"Starting IoTDB Server in folder {path}")
+    print(f"Starting {start_command} in folder {path}")
     t = threading.Thread(target=start_server, args=(path, start_command))
     t.setDaemon(True)
     t.start()
@@ -124,12 +137,14 @@ if __name__ == '__main__':
     start_iotdb_server("tmp/cloud/")
 
     # Create all edge iotdbs
-    for i in range(1, NUMBER_OF_EDGE_DEVICES + 1):
+    for i in range(0, NUMBER_OF_EDGE_DEVICES):
         print(f"Creating Edge {i}")
         shutil.copytree("files/iotdb", f"tmp/edges/iotdb_{i}")
-        port = 7000 + i
+        port = STARTING_PORT + i
         modify_file(f"tmp/edges/iotdb_{i}/conf/iotdb-engine.properties",
                     lambda conf: modify_edge_config(conf, port))
+        modify_file(f"tmp/edges/iotdb_{i}/conf/iotdb-env.sh",
+                    lambda conf: modify_edge_env_config(conf))
         start_iotdb_server(f"tmp/edges/iotdb_{i}")
         # Starting sync server
         start_iotdb_server(f"tmp/edges/iotdb_{i}", "tools/start-sync-client.sh")
@@ -141,7 +156,7 @@ if __name__ == '__main__':
     print("Starting to wait till sync is finished!")
 
     finished_devices = 0
-    while finished_devices < NUMBER_OF_EDGE_DEVICES:
+    while finished_devices < NUMBER_OF_EDGE_DEVICES * NUMBER_OF_WORKER_THREADS:
         print(f"{finished_devices} of {NUMBER_OF_EDGE_DEVICES} are synced...")
         try:
             session = Session("localhost", 6667, "root", "root")
