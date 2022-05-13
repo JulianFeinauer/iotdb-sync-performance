@@ -94,7 +94,7 @@ def insert(device, port):
         print(f"[{device}] Epoch {epochs}")
         for _ in range(0, RECORDS_PER_EPOCH):
             session.insert_str_record(f"root.{device}", timestamp, [f"value-{v}" for v in range(0, SIGNALS_PER_DEVICE)],
-                                      [str(random.uniform(0, 100)) for _ in range(0, SIGNALS_PER_DEVICE)])
+                                      [str(round(random.uniform(0, 100))/10000) for _ in range(0, SIGNALS_PER_DEVICE)])
             timestamp = timestamp + 1
         session.execute_non_query_statement("FLUSH;")
     print(f"Insert for {device} is done!")
