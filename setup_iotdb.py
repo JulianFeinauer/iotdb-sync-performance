@@ -55,7 +55,7 @@ def start_server(folder, start_command="sbin/start-server.sh"):
 def start_iotdb_server(path, start_command="sbin/start-server.sh"):
     print(f"Starting IoTDB Server in folder {path}")
     t = threading.Thread(target=start_server, args=(path, start_command))
-    t.setDaemon(True)
+    t.setDaemon(False)
     t.start()
 
 
