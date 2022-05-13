@@ -9,6 +9,8 @@ from os import path
 from iotdb.Session import Session
 
 NUMBER_OF_WORKER_THREADS = 1
+RECORDS_PER_EPOCH = 1000
+EPOCHS = 10
 
 
 def modify_file(filename, map_function):
@@ -69,9 +71,9 @@ def insert(device, port):
     session = Session("localhost", port, "root", "root")
     session.open(False)
     timestamp = 0
-    for epochs in range(0, 10):
+    for epochs in range(0, EPOCHS):
         print(f"[{device}] Epoch {epochs}")
-        for _ in range(0, 100000):
+        for _ in range(0, NUMBER_OF_WORKER_THREADS):
             session.insert_str_record(f"root.{device}", timestamp, ["temp"],
                                       [str(random.uniform(0, 100))])
             timestamp = timestamp + 1
