@@ -73,7 +73,7 @@ def insert(device, port):
     timestamp = 0
     for epochs in range(0, EPOCHS):
         print(f"[{device}] Epoch {epochs}")
-        for _ in range(0, NUMBER_OF_WORKER_THREADS):
+        for _ in range(0, RECORDS_PER_EPOCH):
             session.insert_str_record(f"root.{device}", timestamp, ["temp"],
                                       [str(random.uniform(0, 100))])
             timestamp = timestamp + 1
