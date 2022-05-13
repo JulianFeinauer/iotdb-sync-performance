@@ -118,6 +118,7 @@ def start_insert_threads(port):
         except:
             # intentionally to nothing
             pass
+        sleep(5)
 
     for i in range(0, NUMBER_OF_WORKER_THREADS):
         device = f"device-{port}-{i}"
