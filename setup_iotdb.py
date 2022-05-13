@@ -16,6 +16,7 @@ NUMBER_OF_EDGE_DEVICES = 40
 NUMBER_OF_WORKER_THREADS = 1
 RECORDS_PER_EPOCH = 100
 EPOCHS = 1
+SIGNALS_PER_DEVICE = 4
 
 
 def modify_file(filename, map_function):
@@ -92,8 +93,8 @@ def insert(device, port):
     for epochs in range(0, EPOCHS):
         print(f"[{device}] Epoch {epochs}")
         for _ in range(0, RECORDS_PER_EPOCH):
-            session.insert_str_record(f"root.{device}", timestamp, ["temp"],
-                                      [str(random.uniform(0, 100))])
+            session.insert_str_record(f"root.{device}", timestamp, [f"value-{v}" for v in range(0, SIGNALS_PER_DEVICE)],
+                                      [str(random.uniform(0, 100)) for _ in range(0, SIGNALS_PER_DEVICE)])
             timestamp = timestamp + 1
         session.execute_non_query_statement("FLUSH;")
     print(f"Insert for {device} is done!")
