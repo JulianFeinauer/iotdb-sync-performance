@@ -55,7 +55,7 @@ def start_server(folder, start_command="sbin/start-server.sh"):
 def start_iotdb_server(path, start_command="sbin/start-server.sh"):
     print(f"Starting IoTDB Server in folder {path}")
     t = threading.Thread(target=start_server, args=(path, start_command))
-    t.setDaemon(False)
+    t.setDaemon(True)
     t.start()
 
 
@@ -78,6 +78,7 @@ def insert(device, port):
                                       [str(random.uniform(0, 100))])
             timestamp = timestamp + 1
         # session.execute_non_query_statement("FLUSH;")
+    print(f"Insert for {device} is done!")
     session.close()
 
 
