@@ -77,7 +77,7 @@ def insert(device, port):
             session.insert_str_record(f"root.{device}", timestamp, ["temp"],
                                       [str(random.uniform(0, 100))])
             timestamp = timestamp + 1
-        # session.execute_non_query_statement("FLUSH;")
+        session.execute_non_query_statement("FLUSH;")
     print(f"Insert for {device} is done!")
     session.close()
 
