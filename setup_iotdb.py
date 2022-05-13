@@ -1,9 +1,15 @@
 import atexit
 import os.path
+import random
 import shutil
 import subprocess
 import threading
 from os import path
+
+from iotdb.Session import Session
+
+NUMBER_OF_WORKER_THREADS = 1
+
 
 def modify_file(filename, map_function):
     config_file = open(filename)
@@ -16,19 +22,23 @@ def modify_file(filename, map_function):
     config_file.write(config)
     config_file.close()
 
+
 def modify_cloud_config(config):
     config = config.replace("# is_sync_enable=false", "is_sync_enable=true")
     config = config.replace("# sync_server_port=5555", "sync_server_port=5555")
     config = config.replace("# ip_white_list=0.0.0.0/0", "ip_white_list=0.0.0.0/0")
     return config
 
+
 def modify_edge_config(config, port):
     config = config.replace("rpc_port=6667", f"rpc_port={port}")
     return config
 
+
 STOP = False
 
 processes_spawned = []
+
 
 def start_server(folder, start_command="sbin/start-server.sh"):
     proc = subprocess.Popen([start_command], cwd=folder, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
@@ -37,7 +47,7 @@ def start_server(folder, start_command="sbin/start-server.sh"):
         line = proc.stdout.readline()
         if not line:
             break
-        print(f"[{folder}] {line.decode('ascii')}", end="")
+        # print(f"[{folder}] {line.decode('ascii')}", end="")
 
 
 def start_iotdb_server(path, start_command="sbin/start-server.sh"):
@@ -53,6 +63,45 @@ def before_end_hook():
         p: subprocess.Popen
         print(f"Killing process {p.pid}")
         p.kill()
+
+
+def insert(device, port):
+    session = Session("localhost", port, "root", "root")
+    session.open(False)
+    timestamp = 0
+    for epochs in range(0, 10):
+        print(f"[{device}] Epoch {epochs}")
+        for _ in range(0, 100000):
+            session.insert_str_record(f"root.{device}", timestamp, ["temp"],
+                                      [str(random.uniform(0, 100))])
+            timestamp = timestamp + 1
+        # session.execute_non_query_statement("FLUSH;")
+    session.close()
+
+
+def insert_thread(device, port):
+    print(f"Start insert Thread for {device} against port {port}")
+    t = threading.Thread(target=insert, args=(device, port))
+    t.setDaemon(False)
+    t.start()
+
+
+def start_insert_threads(port):
+    # Wait for the server to be ready
+    while True:
+        try:
+            session = Session("localhost", port, "root", "root")
+            session.open(False)
+            session.close()
+            break
+        except:
+            # intentionally to nothing
+            pass
+
+    for i in range(0, NUMBER_OF_WORKER_THREADS):
+        device = f"device-{port}-{i}"
+        insert_thread(device, port)
+
 
 if __name__ == '__main__':
     atexit.register(before_end_hook)
@@ -70,22 +119,14 @@ if __name__ == '__main__':
     for i in range(1, 11):
         print(f"Creating Edge {i}")
         shutil.copytree("files/iotdb", f"tmp/edges/iotdb_{i}")
-        modify_file(f"tmp/edges/iotdb_{i}/conf/iotdb-engine.properties", lambda conf: modify_edge_config(conf, 7000 + i))
+        port = 7000 + i
+        modify_file(f"tmp/edges/iotdb_{i}/conf/iotdb-engine.properties",
+                    lambda conf: modify_edge_config(conf, port))
         start_iotdb_server(f"tmp/edges/iotdb_{i}")
         # Starting sync server
         start_iotdb_server(f"tmp/edges/iotdb_{i}", "tools/start-sync-client.sh")
         # Start mass importing
-
-
-
+        start_insert_threads(port)
 
     input("Press ENTER to stop")
     before_end_hook()
-
-
-
-
-
-
-
-
