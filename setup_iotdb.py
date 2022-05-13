@@ -5,11 +5,16 @@ import shutil
 import subprocess
 import threading
 from os import path
+from time import sleep
 
 from iotdb.Session import Session
+from iotdb.utils.Field import Field
+from iotdb.utils.RowRecord import RowRecord
+from iotdb.utils.SessionDataSet import SessionDataSet
 
+NUMBER_OF_EDGE_DEVICES = 10
 NUMBER_OF_WORKER_THREADS = 1
-RECORDS_PER_EPOCH = 1000
+RECORDS_PER_EPOCH = 10000
 EPOCHS = 10
 
 
@@ -55,7 +60,7 @@ def start_server(folder, start_command="sbin/start-server.sh"):
 def start_iotdb_server(path, start_command="sbin/start-server.sh"):
     print(f"Starting IoTDB Server in folder {path}")
     t = threading.Thread(target=start_server, args=(path, start_command))
-    t.setDaemon(False)
+    t.setDaemon(True)
     t.start()
 
 
@@ -119,7 +124,7 @@ if __name__ == '__main__':
     start_iotdb_server("tmp/cloud/")
 
     # Create all edge iotdbs
-    for i in range(1, 11):
+    for i in range(1, NUMBER_OF_EDGE_DEVICES + 1):
         print(f"Creating Edge {i}")
         shutil.copytree("files/iotdb", f"tmp/edges/iotdb_{i}")
         port = 7000 + i
@@ -131,5 +136,23 @@ if __name__ == '__main__':
         # Start mass importing
         start_insert_threads(port)
 
-    input("Press ENTER to stop")
+
+    # We could start to find out when everything is synced
+    session = Session("localhost", 6667, "root", "root")
+    session.open(False)
+
+    finished_devices = 0
+    while finished_devices < NUMBER_OF_EDGE_DEVICES:
+        result: SessionDataSet = session.execute_query_statement("SELECT COUNT(*) FROM root.** align by device;")
+        while result.has_next():
+            record: RowRecord = result.next()
+            device = record.get_fields()[0].get_string_value()
+            count = record.get_fields()[1].get_long_value()
+            if count == RECORDS_PER_EPOCH * EPOCHS:
+                finished_devices = finished_devices + 1
+                print(f" - Sync finished for device {device} - ")
+        sleep(1)
+    session.close()
+    print("All devices are synced, stopping now!")
+
     before_end_hook()
