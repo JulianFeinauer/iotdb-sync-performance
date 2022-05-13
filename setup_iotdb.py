@@ -138,23 +138,28 @@ if __name__ == '__main__':
 
 
     # We could start to find out when everything is synced
-    session = Session("localhost", 6667, "root", "root")
-    session.open(False)
+    print("Starting to wait till sync is finished!")
 
     finished_devices = 0
     while finished_devices < NUMBER_OF_EDGE_DEVICES:
         print(f"{finished_devices} of {NUMBER_OF_EDGE_DEVICES} are synced...")
-        result: SessionDataSet = session.execute_query_statement("SELECT COUNT(*) FROM root.** align by device;")
-        while result.has_next():
-            record: RowRecord = result.next()
-            device = record.get_fields()[0].get_string_value()
-            count = record.get_fields()[1].get_long_value()
-            # print(f"{device} : {count} ({count/(RECORDS_PER_EPOCH * EPOCHS) * 100}%)")
-            if count == RECORDS_PER_EPOCH * EPOCHS:
-                finished_devices = finished_devices + 1
-                print(f" - Sync finished for device {device} - ")
-        sleep(1)
-    session.close()
+        try:
+            session = Session("localhost", 6667, "root", "root")
+            session.open(False)
+            result: SessionDataSet = session.execute_query_statement("SELECT COUNT(*) FROM root.** align by device;")
+            while result.has_next():
+                record: RowRecord = result.next()
+                device = record.get_fields()[0].get_string_value()
+                count = record.get_fields()[1].get_long_value()
+                # print(f"{device} : {count} ({count/(RECORDS_PER_EPOCH * EPOCHS) * 100}%)")
+                if count == RECORDS_PER_EPOCH * EPOCHS:
+                    finished_devices = finished_devices + 1
+                    print(f" - Sync finished for device {device} - ")
+            sleep(5)
+            session.close()
+        except:
+            pass
+
     print("All devices are synced, stopping now!")
 
     before_end_hook()
